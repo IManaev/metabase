@@ -42,7 +42,7 @@
   [card]
   (card/map->CardInstance
    (u/select-nested-keys card [:id :name :description :display :visualization_settings
-                               [:dataset_query :type [:native :template_tags]]])))
+                               [:dataset_query :type [:native :template-tags]]])))
 
 (defn public-card
   "Return a public Card matching key-value CONDITIONS, removing all columns that should not be visible to the general

@@ -54,10 +54,10 @@ export type TemplateTagType = "text" | "number" | "date" | "dimension";
 export type TemplateTag = {
   id: TemplateTagId,
   name: TemplateTagName,
-  display_name: string,
+  "display-name": string,
   type: TemplateTagType,
   dimension?: LocalFieldReference,
-  widget_type?: ParameterType,
+  "widget-type"?: ParameterType,
   required?: boolean,
   default?: string,
 };
@@ -66,7 +66,7 @@ export type TemplateTags = { [key: TemplateTagName]: TemplateTag };
 
 export type NativeQuery = {
   query: string,
-  template_tags: TemplateTags,
+  "template-tags": TemplateTags,
 };
 
 export type StructuredQuery = {

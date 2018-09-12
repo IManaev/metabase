@@ -55,7 +55,7 @@ export const NATIVE_QUERY_TEMPLATE: NativeDatasetQuery = {
   database: null,
   native: {
     query: "",
-    template_tags: {},
+    "template-tags": {},
   },
 };
 
@@ -134,8 +134,8 @@ export function getTemplateTags(card: ?Card): Array<TemplateTag> {
   return card &&
     card.dataset_query &&
     card.dataset_query.type === "native" &&
-    card.dataset_query.native.template_tags
-    ? Object.values(card.dataset_query.native.template_tags)
+    card.dataset_query.native["template-tags"]
+    ? Object.values(card.dataset_query.native["template-tags"])
     : [];
 }
 

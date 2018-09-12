@@ -395,7 +395,7 @@ describe("public/embedded", () => {
           type: "native",
           native: {
             query: "SELECT {{num}} AS num",
-            template_tags: {
+            "template-tags": {
               num: {
                 name: "num",
                 display_name: "Num",

@@ -30,7 +30,7 @@
 
 (expect
   {:Segment #{2 3}
-   :Metric  nil}
+   :Metric  #{}}
   (card-dependencies
    {:dataset_query {:type :query
                     :query {:aggregation ["rows"]
@@ -45,8 +45,8 @@
                             :filter      ["AND" [">" 4 "2014-10-19"] ["=" 5 "yes"] ["OR" ["SEGMENT" 1] ["!=" 5 "5"]]]}}}))
 
 (expect
-  {:Segment nil
-   :Metric  nil}
+  {:Segment #{}
+   :Metric  #{}}
   (card-dependencies
    {:dataset_query {:type :query
                     :query {:aggregation nil

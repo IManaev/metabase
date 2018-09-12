@@ -33,11 +33,11 @@
   {:database (data/id)
    :type     "native"
    :native   {:query         "SELECT AVG(SUBTOTAL) AS \"Average Price\"\nFROM ORDERS nWHERE {{category}}"
-              :template_tags {:category {:name         "category"
-                                         :display_name "Category"
+              :template-tags {:category {:name         "category"
+                                         :display-name "Category"
                                          :type         "dimension"
                                          :dimension    ["field-id" (u/get-id field-or-id)]
-                                         :widget_type  "category"
+                                         :widget-type  "category"
                                          :default      "Widget"}}}})
 
 (defn- do-with-updated-fields-for-card {:style/indent 1} [options & [f]]

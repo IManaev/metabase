@@ -1,6 +1,5 @@
 (ns metabase.automagic-dashboards.filters
-  (:require [metabase.models.field :refer [Field] :as field]
-            [metabase.query-processor.middleware.expand-macros :refer [merge-filter-clauses]]
+  (:require [metabase.models.field :as field :refer [Field]]
             [metabase.query-processor.util :as qp.util]
             [metabase.util :as u]
             [metabase.util.schema :as su]
@@ -199,4 +198,4 @@
     (->> filter-clause
          flatten-filter-clause
          (remove (comp in-refinement? collect-field-references))
-         (apply merge-filter-clauses refinement))))
+         (cons refinement))))

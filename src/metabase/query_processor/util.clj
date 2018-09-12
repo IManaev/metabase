@@ -42,16 +42,8 @@
 
 ;;; ------------------------------------------------- Normalization --------------------------------------------------
 
-;; The following functions make it easier to deal with MBQL queries, which are case-insensitive, string/keyword
-;; insensitive, and underscore/hyphen insensitive.  These should be preferred instead of assuming the frontend will
-;; always pass in clauses the same way, since different variation are all legal under MBQL '98.
-
-;; TODO - In the future it might make sense to simply walk the entire query and normalize the whole thing when it
-;; comes in. I've tried implementing middleware to do that but it ended up breaking a few things that wrongly assume
-;; different clauses will always use a certain case (e.g. SQL `:template_tags`). Fixing all of that is out-of-scope
-;; for the nested queries PR but should possibly be revisited in the future.
-
-(s/defn normalize-token :- s/Keyword
+;; TODO - this has been moved to `metabase.mbql.util`; use that implementation instead.
+(s/defn ^:deprecated normalize-token :- s/Keyword
   "Convert a string or keyword in various cases (`lisp-case`, `snake_case`, or `SCREAMING_SNAKE_CASE`) to a lisp-cased
   keyword."
   [token :- su/KeywordOrString]
@@ -60,7 +52,9 @@
       (str/replace #"_" "-")
       keyword))
 
-(defn get-normalized
+;; All this stuff is deprecated because we're only dealing with normalize queries now
+
+(defn ^:deprecated get-normalized
   "Get the value for normalized key K in map M, regardless of how the key was specified in M,
    whether string or keyword, lisp-case, snake_case, or SCREAMING_SNAKE_CASE.
 
@@ -80,7 +74,7 @@
        v
        not-found))))
 
-(defn get-in-normalized
+(defn ^:deprecated get-in-normalized
   "Like `get-normalized`, but accepts a sequence of keys KS, like `get-in`.
 
     (get-in-normalized {\"NUM_BIRDS\" {\"TOUCANS\" 2}} [:num-birds :toucans]) ; -> 2"
@@ -96,7 +90,7 @@
        v
        not-found))))
 
-(defn dissoc-normalized
+(defn ^:deprecated dissoc-normalized
   "Remove all matching keys from map M regardless of case, string/keyword, or hypens/underscores.
 
      (dissoc-normalized {\"NUM_TOUCANS\" 3} :num-toucans) ; -> {}"
@@ -110,7 +104,7 @@
         (= k (normalize-token map-k)) (recur (dissoc m map-k) more)
         :else                         (recur m                more)))))
 
-(defn assoc-in-normalized
+(defn ^:deprecated assoc-in-normalized
   "Assoc the value for normalized sequence of keys KS in map M, regardless of how the keys were
    specified in M, whether string or keyword, lisp-case, snake_case, or SCREAMING_SNAKE_CASE."
   [m ks v]
@@ -187,8 +181,11 @@
 
 ;;; ---------------------------------------- General Tree Manipulation Helpers ---------------------------------------
 
-(defn postwalk-pred
-  "Transform `form` by applying `f` to each node where `pred` returns true"
+(defn ^:deprecated postwalk-pred
+  "Transform `form` by applying `f` to each node where `pred` returns true
+
+  DEPRECATED: use `mbql.u/replace-clauses` instead, or if that's not sophisticated enough, use a `clojure.walk` fn
+  directly."
   [pred f form]
   (walk/postwalk (fn [node]
                    (if (pred node)
@@ -196,12 +193,11 @@
                      node))
                  form))
 
-(defn postwalk-collect
+(defn ^:deprecated postwalk-collect
   "Invoke `collect-fn` on each node satisfying `pred`. If `collect-fn` returns a value, accumulate that and return the
   results.
 
-  Note: This would be much better as a zipper. It could have the same API, would be faster and would avoid side
-  affects."
+  DEPRECATED: Use `mbql.u/clause-instances` instead to find all instances of a clause."
   [pred collect-fn form]
   (let [results (atom [])]
     (postwalk-pred pred

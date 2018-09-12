@@ -29,7 +29,7 @@
     (assoc (or (:query card-query)
                (when-let [native (:native card-query)]
                  {:native        (trim-query card-id (:query native))
-                  :template_tags (:template_tags native)})
+                  :template-tags (:template-tags native)})
                (throw (Exception. (str "Missing source query in Card " card-id))))
       ;; include database ID as well; we'll pass that up the chain so it eventually gets put in its spot in the
       ;; outer-query
@@ -47,7 +47,7 @@
                    ;; No need to include result metadata here, it can be large and will clutter the logs
                    (u/pprint-to-str 'yellow (dissoc <> :result_metadata)))))))
 
-(defn- expand-card-source-tables
+(defn- ^:deprecated expand-card-source-tables
   "If `source-table` is a Card reference (a string like `card__100`) then replace that with appropriate
   `:source-query` information. Does nothing if `source-table` is a normal ID. Recurses for nested-nested queries."
   [inner-query]

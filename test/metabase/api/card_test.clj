@@ -124,7 +124,7 @@
                         {:database (u/get-id db)
                          :type     :native
                          :native   {:query         "SELECT COUNT(*) FROM VENUES WHERE CATEGORY_ID = {{category}};"
-                                    :template_tags {:category {:id           "a9001580-3bcc-b827-ce26-1dbc82429163"
+                                    :template-tags {:category {:id           "a9001580-3bcc-b827-ce26-1dbc82429163"
                                                                :name         "category"
                                                                :display_name "Category"
                                                                :type         "number"

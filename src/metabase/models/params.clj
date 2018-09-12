@@ -36,7 +36,7 @@
 
      (template-tag->field-form [:template-tag :company] some-dashcard) ; -> [:field-id 100]"
   [[_ tag] dashcard]
-  (get-in dashcard [:card :dataset_query :native :template_tags (keyword tag) :dimension]))
+  (get-in dashcard [:card :dataset_query :native :template-tags (keyword tag) :dimension]))
 
 (defn- param-target->field-id
   "Parse a Card parameter TARGET form, which looks something like `[:dimension [:field-id 100]]`, and return the Field
@@ -196,7 +196,7 @@
 (defn card->template-tag-field-ids
   "Return a set of Field IDs referenced in template tag parameters in CARD."
   [card]
-  (set (for [[_ {dimension :dimension}] (get-in card [:dataset_query :native :template_tags])
+  (set (for [[_ {dimension :dimension}] (get-in card [:dataset_query :native :template-tags])
              :when                      dimension
              :let                       [field-id (field-form->id dimension)]
              :when                      field-id]

@@ -21,7 +21,7 @@
   []
   {:display                "table"
    :dataset_query          {:database (data/id)
-                            :type     "query"
+                            :type     :query
                             :query    {:aggregation ["rows"]
                                        :source_table (data/id :categories)}}
    :visualization_settings {}

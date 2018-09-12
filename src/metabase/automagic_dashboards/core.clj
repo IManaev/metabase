@@ -6,35 +6,38 @@
             [clj-time
              [core :as t]
              [format :as t.format]]
+            [clojure
+             [string :as str]
+             [walk :as walk]]
             [clojure.math.combinatorics :as combo]
-            [clojure.string :as str]
             [clojure.tools.logging :as log]
-            [clojure.walk :as walk]
             [kixi.stats
              [core :as stats]
              [math :as math]]
             [medley.core :as m]
+            [metabase
+             [driver :as driver]
+             [related :as related]
+             [util :as u]]
             [metabase.automagic-dashboards
              [filters :as filters]
              [populate :as populate]
              [rules :as rules]]
-            [metabase.driver :as driver]
+            [metabase.mbql.util :as mbql.u]
             [metabase.models
              [card :as card :refer [Card]]
              [database :refer [Database]]
-             [field :refer [Field] :as field]
+             [field :as field :refer [Field]]
              [interface :as mi]
-             [metric :refer [Metric] :as metric]
+             [metric :as metric :refer [Metric]]
              [query :refer [Query]]
              [segment :refer [Segment]]
              [table :refer [Table]]]
             [metabase.query-processor.middleware.expand-macros :as qp.expand]
             [metabase.query-processor.util :as qp.util]
-            [metabase.related :as related]
             [metabase.sync.analyze.classify :as classify]
-            [metabase.util :as u]
             [metabase.util.date :as date]
-            [puppetlabs.i18n.core :as i18n :refer [tru trs]]
+            [puppetlabs.i18n.core :as i18n :refer [trs tru]]
             [ring.util.codec :as codec]
             [schema.core :as s]
             [toucan.db :as db])
@@ -76,11 +79,11 @@
    :cum-sum   (tru "cumulative sum")})
 
 (def ^:private ^{:arglists '([metric])} saved-metric?
-  (every-pred (comp #{:metric} qp.util/normalize-token first)
+  (every-pred (partial mbql.u/is-clause? :metric)
               (complement qp.expand/ga-metric?)))
 
 (def ^:private ^{:arglists '([metric])} custom-expression?
-  (comp #{:named} qp.util/normalize-token first))
+  (partial mbql.u/is-clause? :named))
 
 (def ^:private ^{:arglists '([metric])} adhoc-metric?
   (complement (some-fn saved-metric? custom-expression?)))
@@ -500,9 +503,7 @@
                                         (-> context :source u/get-id)
                                         (->> context :source u/get-id (str "card__")))}
                  (not-empty filters)
-                 (assoc :filter (->> filters
-                                     (map :filter)
-                                     (apply qp.expand/merge-filter-clauses)))
+                 (assoc :filter (vec (cons :and (map :filter))))
 
                  (not-empty dimensions)
                  (assoc :breakout dimensions)

@@ -27,7 +27,7 @@
    :created_at              true
    :updated_at              true
    :archived                false
-   :definition              {}})
+   :definition              nil})
 
 (defn- user-details [user]
   (tu/match-$ user

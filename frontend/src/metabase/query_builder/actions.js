@@ -647,7 +647,7 @@ export const updateTemplateTag = createThunkAction(
       // using updateIn instead of assocIn due to not preserving order of keys
       return updateIn(
         updatedCard,
-        ["dataset_query", "native", "template_tags"],
+        ["dataset_query", "native", "template-tags"],
         tags => ({ ...tags, [templateTag.name]: templateTag }),
       );
     };
@@ -990,8 +990,8 @@ export const setQueryDatabase = createThunkAction(
         let updatedCard = startNewCard(card.dataset_query.type, databaseId);
         if (existingQuery) {
           updatedCard.dataset_query.native.query = existingQuery;
-          updatedCard.dataset_query.native.template_tags =
-            card.dataset_query.native.template_tags;
+          updatedCard.dataset_query.native["template-tags"] =
+            card.dataset_query.native["template-tags"];
         }
 
         // set the initial collection for the query if this is a native query
@@ -1018,8 +1018,8 @@ export const setQueryDatabase = createThunkAction(
         );
         if (existingQuery) {
           updatedCard.dataset_query.native.query = existingQuery;
-          updatedCard.dataset_query.native.template_tags =
-            card.dataset_query.native.template_tags;
+          updatedCard.dataset_query.native["template-tags"] =
+            card.dataset_query.native["template-tags"];
         }
 
         dispatch(loadMetadataForCard(updatedCard));

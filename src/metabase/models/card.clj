@@ -7,6 +7,7 @@
              [public-settings :as public-settings]
              [util :as u]]
             [metabase.api.common :as api :refer [*current-user-id* *current-user-permissions-set*]]
+            [metabase.mbql.util :as mbql.u]
             [metabase.models
              [dependency :as dependency]
              [field-values :as field-values]
@@ -17,14 +18,13 @@
              [revision :as revision]]
             [metabase.models.query.permissions :as query-perms]
             [metabase.query-processor.util :as qputil]
-            [metabase.util
-             [i18n :as ui18n :refer [tru]]
-             [query :as q]]
+            [metabase.util.i18n :as ui18n :refer [tru]]
             [toucan
              [db :as db]
              [models :as models]]))
 
 (models/defmodel Card :report_card)
+
 
 ;;; -------------------------------------------------- Hydration --------------------------------------------------
 
@@ -34,17 +34,23 @@
   [{:keys [id]}]
   (db/count 'DashboardCard, :card_id id))
 
+
 ;;; -------------------------------------------------- Dependencies --------------------------------------------------
+
+(defn- extract-ids
+  "Get all the Segment or Metric IDs referenced by a query."
+  [segment-or-metric query]
+  (set (for [[_ id] (mbql.u/clause-instances segment-or-metric query)]
+         id)))
 
 (defn card-dependencies
   "Calculate any dependent objects for a given `card`."
   ([_ _ card]
    (card-dependencies card))
-  ([{:keys [dataset_query]}]
-   (when (and dataset_query
-              (= :query (keyword (:type dataset_query))))
-     {:Metric  (q/extract-metric-ids (:query dataset_query))
-      :Segment (q/extract-segment-ids (:query dataset_query))})))
+  ([{{query-type :type, inner-query :query} :dataset_query}]
+   (when (= :query query-type)
+     {:Metric  (extract-ids :metric inner-query)
+      :Segment (extract-ids :segment inner-query)})))
 
 
 ;;; -------------------------------------------------- Revisions --------------------------------------------------
@@ -152,7 +158,7 @@
   models/IModel
   (merge models/IModelDefaults
          {:hydration-keys (constantly [:card])
-          :types          (constantly {:dataset_query          :json
+          :types          (constantly {:dataset_query          :metabase-query
                                        :description            :clob
                                        :display                :keyword
                                        :embedding_params       :json

@@ -6,6 +6,12 @@
             [medley.core :as m])
   (:import [org.joda.time DateTime DateTimeConstants]))
 
+(defn date-type?
+  "Is param type `:date` or some subtype like `:date/month-year`?"
+  [param-type]
+  (or (= param-type :date)
+      (= "date" (namespace param-type))))
+
 ;; Both in MBQL and SQL parameter substitution a field value is compared to a date range, either relative or absolute.
 ;; Currently the field value is casted to a day (ignoring the time of day), so the ranges should have the same
 ;; granularity level.
@@ -101,13 +107,13 @@
     :range  (fn [_ dt]
               {:start dt,
                :end   dt})
-    :filter (fn [_ field] ["=" field ["relative_datetime" "current"]])}
+    :filter (fn [_ field] [:= field [:relative-datetime :current]])}
 
    {:parser #(= % "yesterday")
     :range  (fn [_ dt]
               {:start (t/minus dt (t/days 1))
                :end   (t/minus dt (t/days 1))})
-    :filter (fn [_ field] ["=" field ["relative_datetime" -1 "day"]])}
+    :filter (fn [_ field] [:= field [:relative-datetime -1 :day]])}
 
    ;; adding a tilde (~) at the end of a past<n><unit> filter means we should include the current day/etc.
    ;; e.g. past30days  = past 30 days, not including partial data for today ({:include-current false})
@@ -117,34 +123,34 @@
               (unit-range (t/minus dt (to-period int-value))
                           (t/minus dt (to-period (if (seq include-current?) 0 1)))))
     :filter (fn [{:keys [unit int-value include-current?]} field]
-              ["TIME_INTERVAL" field (- int-value) unit {:include-current (boolean (seq include-current?))}])}
+              [:time-interval field (- int-value) (keyword unit) {:include-current (boolean (seq include-current?))}])}
 
    {:parser (regex->parser #"next([0-9]+)(day|week|month|year)s(~?)" [:int-value :unit :include-current?])
     :range  (fn [{:keys [unit int-value unit-range to-period include-current?]} dt]
               (unit-range (t/plus dt (to-period (if (seq include-current?) 0 1)))
                           (t/plus dt (to-period int-value))))
     :filter (fn [{:keys [unit int-value]} field]
-              ["TIME_INTERVAL" field int-value unit])}
+              [:time-interval field int-value (keyword unit)])}
 
    {:parser (regex->parser #"last(day|week|month|year)" [:unit])
     :range  (fn [{:keys [unit-range to-period]} dt]
               (let [last-unit (t/minus dt (to-period 1))]
                 (unit-range last-unit last-unit)))
     :filter (fn [{:keys [unit]} field]
-              ["TIME_INTERVAL" field "last" unit])}
+              [:time-interval field :last (keyword unit)])}
 
    {:parser (regex->parser #"this(day|week|month|year)" [:unit])
     :range  (fn [{:keys [unit-range]} dt]
               (unit-range dt dt))
     :filter (fn [{:keys [unit]} field]
-              ["TIME_INTERVAL" field "current" unit])}])
+              [:time-interval field :current (keyword unit)])}])
 
 (defn- day->iso8601 [date]
   (tf/unparse (tf/formatters :year-month-day) date))
 
 (defn- range->filter
   [{:keys [start end]} field]
-  ["BETWEEN" field (day->iso8601 start) (day->iso8601 end)])
+  [:between field (day->iso8601 start) (day->iso8601 end)])
 
 (def ^:private absolute-date-string-decoders
   ;; year and month
@@ -166,25 +172,25 @@
               {:start date, :end date})
     :filter (fn [{:keys [date]} field]
               (let [iso8601date (day->iso8601 date)]
-                ["BETWEEN" field iso8601date iso8601date]))}
+                [:between field iso8601date iso8601date]))}
    ;; day range
    {:parser (regex->parser #"([0-9-T:]+)~([0-9-T:]+)" [:date-1 :date-2])
     :range  (fn [{:keys [date-1 date-2]} _]
               {:start date-1, :end date-2})
     :filter (fn [{:keys [date-1 date-2]} field]
-              ["BETWEEN" field (day->iso8601 date-1) (day->iso8601 date-2)])}
+              [:between field (day->iso8601 date-1) (day->iso8601 date-2)])}
    ;; before day
    {:parser (regex->parser #"~([0-9-T:]+)" [:date])
     :range  (fn [{:keys [date]} _]
               {:end date})
     :filter (fn [{:keys [date]} field]
-              ["<" field (day->iso8601 date)])}
+              [:< field (day->iso8601 date)])}
    ;; after day
    {:parser (regex->parser #"([0-9-T:]+)~" [:date])
     :range  (fn [{:keys [date]} _]
               {:start date})
     :filter (fn [{:keys [date]} field]
-              [">" field (day->iso8601 date)])}])
+              [:> field (day->iso8601 date)])}])
 
 (def ^:private all-date-string-decoders
   (concat relative-date-string-decoders absolute-date-string-decoders))

@@ -41,7 +41,7 @@ describe("metabase/meta/Card", () => {
         dataset_query: {
           type: "native",
           native: {
-            template_tags: {
+            "template-tags": {
               baz: { name: "baz", type: "text" },
             },
           },

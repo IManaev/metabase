@@ -8,6 +8,9 @@
    TODO - this namespace is ancient and written with MBQL '95 in mind, e.g. it is case-sensitive.
    At some point this ought to be reworked to be case-insensitive and cleaned up."
   (:require [clojure.tools.logging :as log]
+            [metabase.mbql
+             [normalize :as normalize]
+             [util :as mbql.u]]
             [metabase.models
              [metric :refer [Metric]]
              [segment :refer [Segment]]]
@@ -15,55 +18,26 @@
              [interface :as i]
              [util :as qputil]]
             [metabase.util :as u]
+            [puppetlabs.i18n.core :refer [tru]]
             [toucan.db :as db]))
-
-;;; +----------------------------------------------------------------------------------------------------------------+
-;;; |                                                    UTIL FNS                                                    |
-;;; +----------------------------------------------------------------------------------------------------------------+
-
-(defn- is-clause? [clause-names object]
-  (and (sequential? object)
-       ((some-fn string? keyword?) (first object))
-       (contains? clause-names (qputil/normalize-token (first object)))))
-
-(defn- non-empty-clause? [clause]
-  (and clause
-       (or (not (sequential? clause))
-           (and (seq clause)
-                (not (every? nil? clause))))))
-
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                                    SEGMENTS                                                    |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(defn- segment-parse-filter-subclause [form]
-  (when (non-empty-clause? form)
-    (if-not (is-clause? #{:segment} form)
-      form
-      (:filter (db/select-one-field :definition Segment :id (u/get-id (second form)))))))
+(defn- segment-clauses->id->definition [segment-clauses]
+  (db/select-id->field :definition Segment, :id [:in (set (map second segment-clauses))]))
 
-(defn segment-parse-filter
-  "Expand segment macro into its definition."
-  [form]
-  (when (non-empty-clause? form)
-    (if (is-clause? #{:and :or :not} form)
-      ;; for forms that start with AND/OR/NOT recursively parse the subclauses and put them nicely back into their
-      ;; compound form
-      (cons (first form) (mapv segment-parse-filter (rest form)))
-      ;; otherwise we should have a filter subclause so parse it as such
-      (segment-parse-filter-subclause form))))
+(defn- replace-segment-clauses [outer-query segment-id->definition]
+  (mbql.u/replace-clauses-in outer-query [:query :filter] :segment
+    (fn [[_ segment-id]]
+      (or (:filter (segment-id->definition segment-id))
+          (throw (IllegalArgumentException. (str (tru "Segment {0} does not exist, or is invalid." segment-id))))))))
 
-(defn- expand-segments [query-dict]
-  (cond
-    (non-empty-clause? (get-in query-dict [:query :filter]))
-    (update-in query-dict [:query :filter] segment-parse-filter)
-
-    (non-empty-clause? (get-in query-dict [:query :source-query :filter]))
-    (update-in query-dict [:query :source-query :filter] segment-parse-filter)
-
-    :else
-    query-dict))
+(defn- expand-segments [{{filters :filter} :query, :as outer-query}]
+  (if-let [segments (mbql.u/clause-instances :segment filters)]
+    (replace-segment-clauses outer-query (segment-clauses->id->definition segments))
+    outer-query))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -79,82 +53,53 @@
    (when ((some-fn string? keyword?) id)
      (re-find #"^ga(id)?:" (name id)))))
 
-(defn- metric? [aggregation]
-  (and (is-clause? #{:metric} aggregation)
-       (not (ga-metric? aggregation))))
+(defn- metric-clauses->definitions [metric-clauses]
+  (db/select-field :definition Metric, :id [:in (set (map second metric-clauses))]))
 
-(defn- metric-id [metric]
-  (when (metric? metric)
-    (u/get-id (second metric))))
+(defn- add-metrics-clauses
+  "Add appropriate `filter` and `aggregation` clauses for a sequence of Metrics.
 
-(defn- maybe-unnest-ag-clause
-  "Unnest AG-CLAUSE if it's wrapped in a vector (i.e. if it is using the \"multiple-aggregation\" syntax).
-   (This is provided merely as a convenience to facilitate implementation of the Query Builder, so it can use the same
-   UI for normal aggregations and Metric creation. *METRICS DO NOT SUPPORT MULTIPLE AGGREGATIONS,* so if nested syntax
-   is used, any aggregation after the first will be ignored.)"
-  [ag-clause]
-  (if (and (coll? ag-clause)
-           (every? coll? ag-clause))
-    (first ag-clause)
-    ag-clause))
+    (add-metrics-clauses {:query {}} [[:metric 10]])
+    ;; -> {:query {:aggregation [[:count]], :filter [:= [:field-id 10] 20]}}"
+  [query metric-defs]
+  (let [filters      (filter identity (map :filter metric-defs))
+        aggregations (filter identity (mapcat :aggregation metric-defs))]
+    (-> query
+        (mbql.u/add-filter-clauses filters)
+        (update-in [:query :aggregation] concat aggregations))))
 
-(defn- expand-metric [metric-clause filter-clauses-atom]
-  (let [{filter-clause :filter, ag-clause :aggregation} (db/select-one-field :definition Metric
-                                                          :id (metric-id metric-clause))]
-    (when filter-clause
-      (swap! filter-clauses-atom conj filter-clause))
-    (maybe-unnest-ag-clause ag-clause)))
+(defn- remove-metrics
+  "Remove any `:metric` clauses (excluding GA) from the `:aggregation` clause."
+  [outer-query]
+  (-> (mbql.u/replace-clauses-in outer-query [:query :aggregation] :metric
+        (fn [metric]
+          (when (ga-metric? metric)
+            metric)))
+      (update-in [:query :aggregation] (partial filter identity))))
 
-(defn- expand-metrics-in-ag-clause [query-dict filter-clauses-atom]
-  (qputil/postwalk-pred metric?
-                        #(expand-metric % filter-clauses-atom)
-                        query-dict))
+(defn- metrics
+  "Return a sequence of any (non-GA) `:metric` MBQL clauses in `query`."
+  [{{aggregations :aggregation} :query, :as query}]
+  (seq (filter (complement ga-metric?) (mbql.u/clause-instances :metric aggregations))))
 
-(defn merge-filter-clauses
-  "Merge filter clauses."
-  ([] [])
-  ([clause] clause)
-  ([base-clause & additional-clauses]
-   (let [additional-clauses (filter seq additional-clauses)]
-     (cond
-       (and (seq base-clause)
-            (seq additional-clauses)) (apply vector :and base-clause additional-clauses)
-       (seq base-clause)              base-clause
-       (seq additional-clauses)       (apply merge-filter-clauses additional-clauses)
-       :else                          []))))
-
-(defn- add-metrics-filter-clauses
-  "Add any FILTER-CLAUSES to the QUERY-DICT. If query has existing filter clauses, the new ones are
-   combined with an `:and` filter clause."
-  [query-dict filter-clauses]
-  (if-not (seq filter-clauses)
-    query-dict
-    (update-in query-dict [:query :filter] merge-filter-clauses (if (> (count filter-clauses) 1)
-                                                                  (cons :and filter-clauses)
-                                                                  (first filter-clauses)))))
-
-(defn- expand-metrics* [query-dict]
-  (let [filter-clauses-atom (atom [])
-        query-dict          (expand-metrics-in-ag-clause query-dict filter-clauses-atom)]
-    (add-metrics-filter-clauses query-dict @filter-clauses-atom)))
-
-(defn- expand-metrics [{{aggregations :aggregation} :query, :as query-dict}]
-  (if-not (seq aggregations)
-    ;; :aggregation is empty, so no METRIC to expand
-    query-dict
-    ;; otherwise walk the query dict and expand METRIC clauses
-    (expand-metrics* query-dict)))
+(defn- expand-metrics [query]
+  (if-let [metrics (metrics query)]
+    (add-metrics-clauses (remove-metrics query) (metric-clauses->definitions metrics))
+    query))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                                   MIDDLEWARE                                                   |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(defn- expand-metrics-and-segments "Expand the macros (SEGMENT, METRIC) in a QUERY."
+(defn- expand-metrics-and-segments
+  "Expand the macros (`segment`, `metric`) in a `query`."
   [query]
   (-> query
       expand-metrics
-      expand-segments))
+      expand-segments
+      ;; normalize the query again just in case we did something like accidentally added empty ag or filter clauses
+      normalize/normalize))
 
 
 (defn- expand-macros* [query]
