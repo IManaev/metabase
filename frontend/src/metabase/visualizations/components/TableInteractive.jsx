@@ -357,7 +357,7 @@ export default class TableInteractive extends Component {
         }
       >
         <button
-          class="Button Button--small circular RunButton ml-auto mr-auto block Button--primary" 
+          className="Button Button--small circular RunButton ml-auto mr-auto block Button--primary" 
           style={{backgroundColor:'#ff9100'}}>Anomaly</button>
       </div>
       )
