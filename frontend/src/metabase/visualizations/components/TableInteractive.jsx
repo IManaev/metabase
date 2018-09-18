@@ -103,7 +103,9 @@ export default class TableInteractive extends Component {
 
   constructor(props: Props) {
     super(props);
-
+    if(this.props.data && this.props.data.cols){
+      this.__columns = this.appendActionButtonColumn(this.props.data.cols)
+    }
     this.state = {
       columnWidths: [],
       contentWidths: null,
@@ -146,6 +148,10 @@ export default class TableInteractive extends Component {
       JSON.stringify(this.props.data && this.props.data.cols) !==
       JSON.stringify(newProps.data && newProps.data.cols)
     ) {
+      if(newProps.data && newProps.data.cols){
+        this.__columns = this.appendActionButtonColumn(newProps.data.cols)
+        console.log('appended column componentWillReceiveProps', this.__columns)
+      }
       this.resetColumnWidths();
     }
   }
@@ -179,8 +185,8 @@ export default class TableInteractive extends Component {
   }
 
   _measure() {
-    const { data: { cols, rows } } = this.props;
-
+    const { data: { rows } } = this.props;
+    const cols = this.getColumns()
     ReactDOM.render(
       <div style={{ display: "flex" }}>
         {cols.map((column, columnIndex) => (
@@ -293,12 +299,79 @@ export default class TableInteractive extends Component {
     }
   }
 
+  appendActionButtonColumn = (cols) => {
+    const ids = Math.max(cols.map(t=>t.id))+1
+    const tableId = cols[0].table_id
+    return cols.concat({
+      base_type: "type/Text",
+      description: 'Detect anomaly action button',
+      display_name: "Is Anomaly",
+      extra_info: {},
+      fingerprint: null,
+      fk_field_id: null,
+      id: ids,
+      name: "action_button_key",
+      remapped_from: null,
+      remapped_from_index: null,
+      remapped_to: null,
+      remapping: null,
+      schema_name: null,
+      source: "fields",
+      table_id: tableId,
+      target: null,
+      visibility_type: "normal",
+    })
+  }
+
+  getColumns(){
+    return this.__columns
+  }
+
+  cellActionButtonRenderer = ({key, style, rowIndex, columnIndex}: CellRendererProps) => {
+  }
+
+  renderActionButton = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
+    const { data} = this.props;
+    const { dragColIndex } = this.state;
+    const { rows } = data;
+      return (
+        <div
+        key={key}
+        style={{
+          ...style,
+          // use computed left if dragging
+          left: this.getColumnLeft(style, columnIndex),
+          // add a transition while dragging column
+          transition: dragColIndex != null ? "left 200ms" : null,
+        }}
+        className={cx("TableInteractive-cellWrapper", {
+          "TableInteractive-cellWrapper--firstColumn": false,
+          "TableInteractive-cellWrapper--lastColumn": true,
+          "cursor-pointer": true,
+          "justify-end": true,
+          link: false,
+        })}
+        onMouseUp={ e => {
+                console.log('you clicked me!!!!',rows[rowIndex])
+              }
+        }
+      >
+        <button
+          class="Button Button--small circular RunButton ml-auto mr-auto block Button--primary" 
+          style={{backgroundColor:'#ff9100'}}>Anomaly</button>
+      </div>
+      )
+  }
+
   cellRenderer = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
     const { data, isPivoted, settings } = this.props;
     const { dragColIndex } = this.state;
-    const { rows, cols } = data;
+    const { rows } = data;
+    const cols = this.getColumns()
     const getCellBackgroundColor = settings["table._cell_background_getter"];
-
+    if(columnIndex == cols.length - 1){
+      return this.renderActionButton({ key, style, rowIndex, columnIndex })
+    }
     const column = cols[columnIndex];
     const row = rows[rowIndex];
     const value = row[columnIndex];
@@ -376,7 +449,8 @@ export default class TableInteractive extends Component {
 
   getColumnPositions() {
     let left = 0;
-    return this.props.data.cols.map((col, index) => {
+    const cols = this.getColumns()
+    return cols.map((col, index) => {
       const width = this.getColumnWidth({ index });
       const pos = {
         left,
@@ -391,7 +465,7 @@ export default class TableInteractive extends Component {
 
   getNewColumnLefts(dragColNewIndex: number) {
     const { dragColIndex, columnPositions } = this.state;
-    const { cols } = this.props.data;
+    const cols = this.getColumns()
     const indexes = cols.map((col, index) => index);
     indexes.splice(dragColNewIndex, 0, indexes.splice(dragColIndex, 1)[0]);
     let left = 0;
@@ -415,7 +489,7 @@ export default class TableInteractive extends Component {
 
   tableHeaderRenderer = ({ key, style, columnIndex }: CellRendererProps) => {
     const { sort, isPivoted } = this.props;
-    const { cols } = this.props.data;
+    const cols = this.getColumns()
     const column = cols[columnIndex];
 
     let columnTitle = formatColumn(column);
@@ -583,11 +657,13 @@ export default class TableInteractive extends Component {
   };
 
   render() {
-    const { width, height, data: { cols, rows }, className } = this.props;
-
+    const { width, height, data: { rows }, className } = this.props;
+    const cols = this.getColumns()
     if (!width || !height) {
       return <div className={className} />;
     }
+    console.log('detected columns',cols)
+    console.log('detected rows',rows)
 
     return (
       <ScrollSync>
