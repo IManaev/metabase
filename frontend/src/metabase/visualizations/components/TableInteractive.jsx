@@ -103,9 +103,7 @@ export default class TableInteractive extends Component {
 
   constructor(props: Props) {
     super(props);
-    if(this.props.data && this.props.data.cols){
-      this.__columns = this.appendActionButtonColumn(this.props.data.cols)
-    }
+    this.recalculateColumns(this.props)
     this.state = {
       columnWidths: [],
       contentWidths: null,
@@ -148,11 +146,42 @@ export default class TableInteractive extends Component {
       JSON.stringify(this.props.data && this.props.data.cols) !==
       JSON.stringify(newProps.data && newProps.data.cols)
     ) {
-      if(newProps.data && newProps.data.cols){
-        this.__columns = this.appendActionButtonColumn(newProps.data.cols)
-        console.log('appended column componentWillReceiveProps', this.__columns)
-      }
+      this.recalculateColumns(newProps)
       this.resetColumnWidths();
+    }
+  }
+
+  getColumnByName = (newProps, name) => {
+    if(newProps && newProps.data && newProps.data.cols){
+      const field = newProps.data.cols.find(it=>it.name===name)
+      if(field){
+        return {...field, _index: newProps.data.cols.indexOf(field)}
+      }
+    }
+  }
+
+
+  getAnomalyColumn = (newProps) => {
+    return this.getColumnByName(newProps, 'true_anomaly')
+  }
+
+  getAnomalyFieldValue = (rowIndex) => {
+    const anomalyField = this.getAnomalyColumn(this.props)
+    if(anomalyField && this.props.data && this.props.data.rows){
+      return  this.props.data.rows[rowIndex][anomalyField._index]
+    }
+    return undefined
+  }
+
+  recalculateColumns = (newProps) => {
+    if(newProps && newProps.data && newProps.data.cols){
+      if(this.getAnomalyColumn(newProps)){
+        this.__columns = this.appendActionButtonColumn(newProps.data.cols)
+      } else {
+        this.__columns = newProps.data.cols
+      }
+    }else{
+      this.__columns = []
     }
   }
 
@@ -327,13 +356,41 @@ export default class TableInteractive extends Component {
     return this.__columns
   }
 
-  cellActionButtonRenderer = ({key, style, rowIndex, columnIndex}: CellRendererProps) => {
+  fetchIsAnomaly = (row) => {
+   const column = this.getColumnByName(this.props,'id')
+   const anomalyColumn = this.getAnomalyColumn(this.props)
+   console.log('id column', column)
+   console.log('anomalyColumn', anomalyColumn)
+   console.log('row', row)
+   console.log('props', this.props)
+   const request = JSON.stringify({
+    "table_name":this.props.tableMetadata.name,
+    "id":row[column._index],
+    "value":row[anomalyColumn._index] != null ? !row[anomalyColumn._index] : true
+   })
+   console.log('request',request)
+   fetch('http://localhost:5000/true_anomaly',{
+     method: 'POST',
+     body: request
+   }).then(()=>{
+      if(this.props.runQuestionQuery){
+        this.props.runQuestionQuery()
+      }
+   }).catch((error)=>{
+     console.log(error)
+     alert('Result not saved.')
+   })
+  }
+
+  handleActionButtonClick = (row) => (e) => {
+    this.fetchIsAnomaly(row)
   }
 
   renderActionButton = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
-    const { data} = this.props;
+    const { data } = this.props;
     const { dragColIndex } = this.state;
     const { rows } = data;
+    let isAnomaly = this.getAnomalyFieldValue(rowIndex)
       return (
         <div
         key={key}
@@ -351,16 +408,17 @@ export default class TableInteractive extends Component {
           "justify-end": true,
           link: false,
         })}
-        onMouseUp={ e => {
-                console.log('you clicked me!!!!',rows[rowIndex])
-              }
-        }
+        onMouseUp={this.handleActionButtonClick(rows[rowIndex])}
       >
         <button
           className="Button Button--small circular RunButton ml-auto mr-auto block Button--primary" 
-          style={{backgroundColor:'#ff9100'}}>Anomaly</button>
+          style={{backgroundColor:isAnomaly != null ? isAnomaly ? '#ff9100' : 'hsl(208.20000000000005,72.4%,64.4%)' : '#d7dbde'}}>Anomaly</button>
       </div>
       )
+  }
+
+  isActionButton = (colIndex, cols) => {
+    return cols && cols[colIndex] && cols[colIndex].name === 'action_button_key'
   }
 
   cellRenderer = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
@@ -369,7 +427,7 @@ export default class TableInteractive extends Component {
     const { rows } = data;
     const cols = this.getColumns()
     const getCellBackgroundColor = settings["table._cell_background_getter"];
-    if(columnIndex == cols.length - 1){
+    if(this.isActionButton(columnIndex, cols)){
       return this.renderActionButton({ key, style, rowIndex, columnIndex })
     }
     const column = cols[columnIndex];
@@ -662,9 +720,6 @@ export default class TableInteractive extends Component {
     if (!width || !height) {
       return <div className={className} />;
     }
-    console.log('detected columns',cols)
-    console.log('detected rows',rows)
-
     return (
       <ScrollSync>
         {({ onScroll, scrollLeft, scrollTop }) => (
