@@ -369,7 +369,8 @@ export default class TableInteractive extends Component {
     "value":row[anomalyColumn._index] != null ? !row[anomalyColumn._index] : true
    })
    console.log('request',request)
-   fetch('http://localhost:5000/true_anomaly',{
+   const address = localStorage.getItem('anomalyAddress')
+   fetch(address ? address : 'http://localhost:5000/true_anomaly',{
      method: 'POST',
      body: request
    }).then(()=>{
@@ -378,7 +379,7 @@ export default class TableInteractive extends Component {
       }
    }).catch((error)=>{
      console.log(error)
-     alert('Result not saved.')
+     alert('Result not saved.'+error)
    })
   }
 
