@@ -14,7 +14,6 @@
   {:status  404
    :body    "Not found."
    :headers {"Cache-Control"                     "max-age=0, no-cache, must-revalidate, proxy-revalidate"
-             "Content-Security-Policy"           (-> @#'mb-middleware/content-security-policy-header vals first)
              "Content-Type"                      "text/plain"
              "Expires"                           "Tue, 03 Jul 2001 06:00:00 GMT"
              "Last-Modified"                     true ; this will be current date, so do update-in ... string?

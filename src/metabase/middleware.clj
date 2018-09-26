@@ -182,39 +182,6 @@
   the original request was HTTPS; if sent in response to an HTTP request, this is simply ignored)"
   {"Strict-Transport-Security" "max-age=31536000"})
 
-(def ^:private ^:const content-security-policy-header
-  "`Content-Security-Policy` header. See https://content-security-policy.com for more details."
-  {"Content-Security-Policy"
-   (apply str (for [[k vs] {:default-src ["'none'"]
-                            :script-src  ["'unsafe-inline'"
-                                          "'unsafe-eval'"
-                                          "'self'"
-                                          "https://maps.google.com"
-                                          "https://apis.google.com"
-                                          "https://www.google-analytics.com" ; Safari requires the protocol
-                                          "https://*.googleapis.com"
-                                          "*.gstatic.com"
-                                          (when config/is-dev?
-                                            "localhost:8080")]
-                            :child-src   ["'self'"
-                                          ;; TODO - double check that we actually need this for Google Auth
-                                          "https://accounts.google.com"]
-                            :style-src   ["'unsafe-inline'"
-                                          "'self'"
-                                          "fonts.googleapis.com"]
-                            :font-src    ["'self'"
-                                          "fonts.gstatic.com"
-                                          "themes.googleusercontent.com"
-                                          (when config/is-dev?
-                                            "localhost:8080")]
-                            :img-src     ["*"
-                                          "'self' data:"]
-                            :connect-src ["'self'"
-                                          "metabase.us10.list-manage.com"
-                                          (when config/is-dev?
-                                            "localhost:8080 ws://localhost:8080")]}]
-                (format "%s %s; " (name k) (apply str (interpose " " vs)))))})
-
 (defsetting ssl-certificate-public-key
   (str (tru "Base-64 encoded public key for this site's SSL certificate.")
        (tru "Specify this to enable HTTP Public Key Pinning.")
@@ -235,7 +202,6 @@
   (merge
    (cache-prevention-headers)
    strict-transport-security-header
-   content-security-policy-header
    #_(public-key-pins-header)
    (when-not allow-iframes?
      ;; Tell browsers not to render our site as an iframe (prevent clickjacking)
