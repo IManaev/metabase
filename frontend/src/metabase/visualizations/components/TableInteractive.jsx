@@ -20,6 +20,10 @@ import cx from "classnames";
 
 import ExplicitSize from "metabase/components/ExplicitSize.jsx";
 
+import {WindowModal} from "../../../metabase/components/Modal.jsx";
+
+import ModalContent from "../../../metabase/components/ModalContent.jsx";
+import FormInput from "../../../metabase/admin/datamodel/components/FormInput.jsx";
 // $FlowFixMe: had to ignore react-virtualized in flow, probably due to different version
 import { Grid, ScrollSync } from "react-virtualized";
 import Draggable from "react-draggable";
@@ -107,6 +111,9 @@ export default class TableInteractive extends Component {
     this.state = {
       columnWidths: [],
       contentWidths: null,
+      isKnownAnomalyModalOpen: false,
+      knownAnomalyRow:null,
+      knownAnomalyValue: ''
     };
     this.columnHasResized = {};
     this.headerRefs = [];
@@ -331,7 +338,8 @@ export default class TableInteractive extends Component {
   appendActionButtonColumn = (cols) => {
     const ids = Math.max(cols.map(t=>t.id))+1
     const tableId = cols[0].table_id
-    return cols.concat({
+    return cols
+    .concat({
       base_type: "type/Text",
       description: 'Detect anomaly action button',
       display_name: "Is Anomaly",
@@ -350,10 +358,41 @@ export default class TableInteractive extends Component {
       target: null,
       visibility_type: "normal",
     })
+    .concat({
+      base_type: "type/Text",
+      description: 'Detect known action button',
+      display_name: "Is known anomaly",
+      extra_info: {},
+      fingerprint: null,
+      fk_field_id: null,
+      id: ids,
+      name: "isknownanomaly_action_button_key",
+      remapped_from: null,
+      remapped_from_index: null,
+      remapped_to: null,
+      remapping: null,
+      schema_name: null,
+      source: "fields",
+      table_id: tableId,
+      target: null,
+      visibility_type: "normal",
+    })
   }
 
   getColumns(){
     return this.__columns
+  }
+
+  getAnomalyValue(current){
+    if(current == null){
+      return true
+    }
+    if(current == true){
+      return false
+    }
+    if(current == false){
+      return null
+    }
   }
 
   fetchIsAnomaly = (row) => {
@@ -366,11 +405,11 @@ export default class TableInteractive extends Component {
    const request = JSON.stringify({
     "table_name":this.props.tableMetadata.name,
     "id":row[column._index],
-    "value":row[anomalyColumn._index] != null ? !row[anomalyColumn._index] : true
+    "value": this.getAnomalyValue(row[anomalyColumn._index])
    })
    console.log('request',request)
    const address = localStorage.getItem('anomalyAddress')
-   fetch(address ? address : 'http://localhost:5000/true_anomaly',{
+   fetch(address ? address : 'http://pla01-t05-adm01:5000/true_anomaly',{
      method: 'POST',
      body: request
    }).then(()=>{
@@ -383,10 +422,88 @@ export default class TableInteractive extends Component {
    })
   }
 
-  handleActionButtonClick = (row) => (e) => {
-    this.fetchIsAnomaly(row)
+  handleKnownAnomalyPost = (e) => {
+    e.preventDefault()
+    if(e.nativeEvent.which === 1){
+      console.log('state', this.state)
+      const column = this.getColumnByName(this.props,'id')
+      const anomalyColumn = this.getAnomalyColumn(this.props)
+      console.log('id column', column)
+      console.log('anomalyColumn', anomalyColumn)
+      console.log('row', this.state.knownAnomalyRow)
+      console.log('props', this.props)
+      const request = JSON.stringify({
+       "table_name":this.props.tableMetadata.name,
+       "id":this.state.knownAnomalyRow[column._index],
+       "ticket_name": this.state.knownAnomalyValue
+      })
+      console.log('request',request)
+      const address = localStorage.getItem('knownAnomalyAddress')
+      fetch(address ? address : 'http://pla01-t05-adm01:5000/known_anomaly',{
+        method: 'POST',
+        body: request
+      }).then(()=>{
+         if(this.props.runQuestionQuery){
+           this.props.runQuestionQuery()
+           this.handleModalClose()
+         }
+      }).catch((error)=>{
+        console.log(error)
+        alert('Result not saved.'+error)
+      })
+    }
   }
 
+  handleModalClose = () => {
+    this.setState({isKnownAnomalyModalOpen: false, knownAnomalyRow: null})
+  }
+  handleKnownAnomalyActionButtonClick = (row) => (e) => {
+    e.preventDefault()
+    if(e.nativeEvent.which === 1){
+      this.setState({isKnownAnomalyModalOpen: true, knownAnomalyRow: row})
+    }
+  }
+  handleActionButtonClick = (row) => (e) => {
+    e.preventDefault()
+    if(e.nativeEvent.which === 1){
+      this.fetchIsAnomaly(row)
+    }
+  }
+  renderKnownAnomalyActionButton = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
+    const { data } = this.props;
+    const { dragColIndex } = this.state;
+    const { rows } = data;
+      return (
+        <div
+        key={key}
+        onContextMenu={(e)=>{
+          e.preventDefault()
+        }}
+        style={{
+          ...style,
+          // use computed left if dragging
+          left: this.getColumnLeft(style, columnIndex),
+          // add a transition while dragging column
+          transition: dragColIndex != null ? "left 200ms" : null,
+        }}
+        className={cx("TableInteractive-cellWrapper", {
+          "TableInteractive-cellWrapper--firstColumn": false,
+          "TableInteractive-cellWrapper--lastColumn": false,
+          "cursor-pointer": true,
+          "justify-end": true,
+          link: false,
+        })}
+        onMouseUp={this.handleKnownAnomalyActionButtonClick(rows[rowIndex])}
+      >
+        <button
+          onContextMenu={(e)=>{
+            e.preventDefault()
+          }}
+          className="Button Button--small circular RunButton ml-auto mr-auto block Button--primary" 
+          style={{backgroundColor:'hsl(208.20000000000005,72.4%,64.4%)'}}>KnownAnomaly</button>
+      </div>
+      )
+  }
   renderActionButton = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
     const { data } = this.props;
     const { dragColIndex } = this.state;
@@ -395,6 +512,9 @@ export default class TableInteractive extends Component {
       return (
         <div
         key={key}
+        onContextMenu={(e)=>{
+          e.preventDefault()
+        }}
         style={{
           ...style,
           // use computed left if dragging
@@ -412,16 +532,21 @@ export default class TableInteractive extends Component {
         onMouseUp={this.handleActionButtonClick(rows[rowIndex])}
       >
         <button
+          onContextMenu={(e)=>{
+            e.preventDefault()
+          }}
           className="Button Button--small circular RunButton ml-auto mr-auto block Button--primary" 
           style={{backgroundColor:isAnomaly != null ? isAnomaly ? '#ff9100' : 'hsl(208.20000000000005,72.4%,64.4%)' : '#d7dbde'}}>Anomaly</button>
       </div>
       )
   }
-
+  
   isActionButton = (colIndex, cols) => {
     return cols && cols[colIndex] && cols[colIndex].name === 'action_button_key'
   }
-
+  isKnownAnomalyActionButton = (colIndex, cols) => {
+    return cols && cols[colIndex] && cols[colIndex].name === 'isknownanomaly_action_button_key'
+  }
   cellRenderer = ({ key, style, rowIndex, columnIndex }: CellRendererProps) => {
     const { data, isPivoted, settings } = this.props;
     const { dragColIndex } = this.state;
@@ -430,6 +555,8 @@ export default class TableInteractive extends Component {
     const getCellBackgroundColor = settings["table._cell_background_getter"];
     if(this.isActionButton(columnIndex, cols)){
       return this.renderActionButton({ key, style, rowIndex, columnIndex })
+    } else if (this.isKnownAnomalyActionButton(columnIndex, cols)){
+      return this.renderKnownAnomalyActionButton({ key, style, rowIndex, columnIndex })
     }
     const column = cols[columnIndex];
     const row = rows[rowIndex];
@@ -723,78 +850,98 @@ export default class TableInteractive extends Component {
     }
     return (
       <ScrollSync>
-        {({ onScroll, scrollLeft, scrollTop }) => (
-          <div
-            className={cx(className, "TableInteractive relative", {
-              "TableInteractive--pivot": this.props.isPivoted,
-              "TableInteractive--ready": this.state.contentWidths,
-              // no hover if we're dragging a column
-              "TableInteractive--noHover": this.state.dragColIndex != null,
-            })}
-          >
-            <canvas
-              className="spread"
-              style={{ pointerEvents: "none", zIndex: 999 }}
-              width={width}
-              height={height}
-            />
-            <Grid
-              ref={ref => (this.header = ref)}
-              style={{
-                top: 0,
-                left: 0,
-                right: 0,
-                height: HEADER_HEIGHT,
-                position: "absolute",
-                overflow: "hidden",
-              }}
-              className="TableInteractive-header scroll-hide-all"
-              width={width || 0}
-              height={HEADER_HEIGHT}
-              rowCount={1}
-              rowHeight={HEADER_HEIGHT}
-              // HACK: there might be a better way to do this, but add a phantom padding cell at the end to ensure scroll stays synced if main content scrollbars are visible
-              columnCount={cols.length + 1}
-              columnWidth={props =>
-                props.index < cols.length ? this.getColumnWidth(props) : 50
-              }
-              cellRenderer={props =>
-                props.columnIndex < cols.length
-                  ? this.tableHeaderRenderer(props)
-                  : null
-              }
-              onScroll={({ scrollLeft }) => onScroll({ scrollLeft })}
-              scrollLeft={scrollLeft}
-              tabIndex={null}
-            />
-            <Grid
-              ref={ref => (this.grid = ref)}
-              style={{
-                top: HEADER_HEIGHT,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                position: "absolute",
-              }}
-              className=""
-              width={width}
-              height={height - HEADER_HEIGHT}
-              columnCount={cols.length}
-              columnWidth={this.getColumnWidth}
-              rowCount={rows.length}
-              rowHeight={ROW_HEIGHT}
-              cellRenderer={this.cellRenderer}
-              onScroll={({ scrollLeft }) => {
-                this.props.onActionDismissal();
-                return onScroll({ scrollLeft });
-              }}
-              scrollLeft={scrollLeft}
-              tabIndex={null}
-              overscanRowCount={20}
-            />
-          </div>
-        )}
-      </ScrollSync>
+          {({ onScroll, scrollLeft, scrollTop }) => (
+            <div
+              className={cx(className, "TableInteractive relative", {
+                "TableInteractive--pivot": this.props.isPivoted,
+                "TableInteractive--ready": this.state.contentWidths,
+                // no hover if we're dragging a column
+                "TableInteractive--noHover": this.state.dragColIndex != null,
+              })}
+            >
+              <canvas
+                className="spread"
+                style={{ pointerEvents: "none", zIndex: 999 }}
+                width={width}
+                height={height}
+              />
+              <Grid
+                ref={ref => (this.header = ref)}
+                style={{
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: HEADER_HEIGHT,
+                  position: "absolute",
+                  overflow: "hidden",
+                }}
+                className="TableInteractive-header scroll-hide-all"
+                width={width || 0}
+                height={HEADER_HEIGHT}
+                rowCount={1}
+                rowHeight={HEADER_HEIGHT}
+                // HACK: there might be a better way to do this, but add a phantom padding cell at the end to ensure scroll stays synced if main content scrollbars are visible
+                columnCount={cols.length + 1}
+                columnWidth={props =>
+                  props.index < cols.length ? this.getColumnWidth(props) : 50
+                }
+                cellRenderer={props =>
+                  props.columnIndex < cols.length
+                    ? this.tableHeaderRenderer(props)
+                    : null
+                }
+                onScroll={({ scrollLeft }) => onScroll({ scrollLeft })}
+                scrollLeft={scrollLeft}
+                tabIndex={null}
+              />
+              <Grid
+                ref={ref => (this.grid = ref)}
+                style={{
+                  top: HEADER_HEIGHT,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  position: "absolute",
+                }}
+                className=""
+                width={width}
+                height={height - HEADER_HEIGHT}
+                columnCount={cols.length}
+                columnWidth={this.getColumnWidth}
+                rowCount={rows.length}
+                rowHeight={ROW_HEIGHT}
+                cellRenderer={this.cellRenderer}
+                onScroll={({ scrollLeft }) => {
+                  this.props.onActionDismissal();
+                  return onScroll({ scrollLeft });
+                }}
+                scrollLeft={scrollLeft}
+                tabIndex={null}
+                overscanRowCount={20}
+              />
+              <WindowModal isOpen={this.state.isKnownAnomalyModalOpen}>
+                <ModalContent title={"Known anomaly"} onClose={this.handleModalClose} footer={
+                  <button
+                    onContextMenu={(e)=>{
+                      e.preventDefault()
+                    }}
+                    onClick={this.handleKnownAnomalyPost}
+                    className="Button Button--small circular RunButton ml-auto mr-auto block Button--primary" 
+                    style={{backgroundColor:'hsl(208.20000000000005,72.4%,64.4%)'}}>Submit</button>
+                }>
+                <FormInput field={{active:true, valid: true, placeholder:"Jira ticket number, PLA-111111",
+                   onBlur:this.onKnownAnomalyValueUpdate}}/>
+                </ModalContent>
+              </WindowModal>
+            </div>
+          )}
+        </ScrollSync>
     );
+  }
+
+  onKnownAnomalyValueUpdate = (e) => {
+    if(e && e.target){
+      this.setState({knownAnomalyValue:e.target.value})
+    }
   }
 }
