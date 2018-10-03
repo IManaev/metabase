@@ -455,7 +455,7 @@ export default class TableInteractive extends Component {
   }
 
   handleModalClose = () => {
-    this.setState({isKnownAnomalyModalOpen: false, knownAnomalyRow: null})
+    this.setState({isKnownAnomalyModalOpen: false, knownAnomalyRow: null, knownAnomalyValue: ''})
   }
   handleKnownAnomalyActionButtonClick = (row) => (e) => {
     e.preventDefault()
