@@ -107,8 +107,61 @@ export default class ChartClickActions extends Component {
     }
   };
 
+  queryAttributeValues(props){
+    const { clicked} = props;
+    if(clicked){
+      let address = localStorage.getItem('attributeValuesAddress')
+      address = address ? address : 'http://pla01-t05-adm01:5000/attribute_values'
+      address = `${address}?table_name=${clicked.tableName}&id=${clicked.overridenId}&attribute_name=${clicked.column.name}`
+      console.log('fetching attribute value for ', clicked, address)
+      fetch(address,{
+        method: 'GET'
+      }).then((response)=>{
+        this.setState({...this.state, overrideText: JSON.stringify(response)})
+      }).catch((error)=>{
+        this.setState({...this.state, overrideText: `ERROR: ${error}`})
+      })
+    }
+  }
+
+  renderOverriden(){
+    const { clicked} = this.props;
+    return (
+      <Popover
+        target={clicked.element}
+        targetEvent={clicked.event}
+        onClose={() => {
+          MetabaseAnalytics.trackEvent("Action", "Dismissed Click Action Menu");
+          this.close();
+        }}
+        verticalAttachments={["top", "bottom"]}
+        horizontalAttachments={["left", "center", "right"]}
+        sizeToFit
+        pinInitialAttachment
+      >
+         <div className="text-bold text-medium">
+            <div
+                className="border-row-divider p2 flex align-center text-default-hover"
+              >
+                {this.state.overrideText ? this.state.overrideText : '...fetching...'}
+            </div>
+         </div>
+      </Popover>
+    );
+  }
+
+  componentWillReceiveProps(nextProps){
+    if(nextProps.clicked && nextProps.clicked.override && nextProps.clicked != this.props.clicked){
+      this.queryAttributeValues(nextProps)
+    }
+  }
+
   render() {
     const { clicked, clickActions, onChangeCardAndRun } = this.props;
+
+    if(clicked && clicked.override){
+      return this.renderOverriden()
+    }
 
     if (!clicked || !clickActions || clickActions.length === 0) {
       return null;

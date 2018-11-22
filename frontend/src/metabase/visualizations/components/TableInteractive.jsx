@@ -331,7 +331,7 @@ export default class TableInteractive extends Component {
   onVisualizationClick(clicked: ?ClickObject, element: HTMLElement) {
     const { onVisualizationClick } = this.props;
     if (this.visualizationIsClickable(clicked)) {
-      onVisualizationClick({ ...clicked, element });
+      onVisualizationClick({ ...clicked, element, override: true, tableName: this.props.tableMetadata.name });
     }
   }
 
@@ -568,6 +568,8 @@ export default class TableInteractive extends Component {
       columnIndex,
       isPivoted,
     );
+    const id_column = this.getColumnByName(this.props,'id')
+    clicked.overridenId = row[id_column._index]
     const isClickable = this.visualizationIsClickable(clicked);
     const backgroundColor =
       getCellBackgroundColor &&
