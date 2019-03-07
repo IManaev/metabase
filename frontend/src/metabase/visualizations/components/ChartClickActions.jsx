@@ -117,7 +117,11 @@ export default class ChartClickActions extends Component {
       fetch(address,{
         method: 'GET'
       }).then((response)=>{
-        this.setState({...this.state, overrideText: JSON.stringify(response)})
+        response.json().then((parsed)=>{
+          this.setState({...this.state, overrideText: parsed})
+        }).catch((e)=>{
+          this.setState({...this.state, overrideText: `ERROR: ${e}`})
+        })
       }).catch((error)=>{
         this.setState({...this.state, overrideText: `ERROR: ${error}`})
       })
@@ -143,11 +147,37 @@ export default class ChartClickActions extends Component {
             <div
                 className="border-row-divider p2 flex align-center text-default-hover"
               >
-                {this.state.overrideText ? this.state.overrideText : '...fetching...'}
+                {this.state.overrideText ? this.renderOverridenText() : '...fetching...'}
             </div>
          </div>
       </Popover>
     );
+  }
+
+  renderOverridenText = () => {
+    const {overrideText} = this.state
+    if(typeof overrideText === 'string'){
+      return overrideText
+    }else{
+      let keyValArr = []
+      for(const key in overrideText){
+        if(overrideText.hasOwnProperty(key)){
+           keyValArr.push({key:key,val:overrideText[key]}) 
+        }
+      }
+      return (
+        <div>
+          {keyValArr.map((v,i)=>{
+            const str = `"${v.key}": ${v.val}`
+            return (
+              <div key={i}>
+                {str}
+              </div>
+            )
+          })}
+        </div>
+      )
+    }
   }
 
   componentWillReceiveProps(nextProps){

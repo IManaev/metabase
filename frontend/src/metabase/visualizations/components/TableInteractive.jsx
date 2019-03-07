@@ -569,7 +569,7 @@ export default class TableInteractive extends Component {
       isPivoted,
     );
     const id_column = this.getColumnByName(this.props,'id')
-    clicked.overridenId = row[id_column._index]
+    clicked.overridenId = row[id_column ? id_column._index : 0]
     const isClickable = this.visualizationIsClickable(clicked);
     const backgroundColor =
       getCellBackgroundColor &&
